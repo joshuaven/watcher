@@ -111,10 +111,16 @@ func RegexFilterHook(r *regexp.Regexp, useFullPath bool) FilterFileHookFunc {
 	}
 }
 
+// Details of the error
+type ErrorDetails struct {
+	Error error
+	Path  string
+}
+
 // Watcher describes a process that watches files for changes.
 type Watcher struct {
 	Event  chan Event
-	Error  chan error
+	Error  chan ErrorDetails
 	Closed chan struct{}
 	close  chan struct{}
 	wg     *sync.WaitGroup
@@ -139,7 +145,7 @@ func New() *Watcher {
 
 	return &Watcher{
 		Event:   make(chan Event),
-		Error:   make(chan error),
+		Error:   make(chan ErrorDetails),
 		Closed:  make(chan struct{}),
 		close:   make(chan struct{}),
 		mu:      new(sync.Mutex),
@@ -498,12 +504,21 @@ func (w *Watcher) retrieveFileList() map[string]os.FileInfo {
 				if os.IsNotExist(err) {
 					w.mu.Unlock()
 					if name == err.(*os.PathError).Path {
-						w.Error <- ErrWatchedFileDeleted
+						errorDetails := ErrorDetails{
+							Error: ErrWatchedFileDeleted,
+							Path:  name,
+						}
+						w.Error <- errorDetails
+
 						w.RemoveRecursive(name)
 					}
 					w.mu.Lock()
 				} else {
-					w.Error <- err
+					errorDetails := ErrorDetails{
+						Error: ErrWatchedFileDeleted,
+						Path:  "",
+					}
+					w.Error <- errorDetails
 				}
 			}
 		} else {
@@ -512,12 +527,21 @@ func (w *Watcher) retrieveFileList() map[string]os.FileInfo {
 				if os.IsNotExist(err) {
 					w.mu.Unlock()
 					if name == err.(*os.PathError).Path {
-						w.Error <- ErrWatchedFileDeleted
+						errorDetails := ErrorDetails{
+							Error: ErrWatchedFileDeleted,
+							Path:  name,
+						}
+						w.Error <- errorDetails
+
 						w.Remove(name)
 					}
 					w.mu.Lock()
 				} else {
-					w.Error <- err
+					errorDetails := ErrorDetails{
+						Error: ErrWatchedFileDeleted,
+						Path:  "",
+					}
+					w.Error <- errorDetails
 				}
 			}
 		}
